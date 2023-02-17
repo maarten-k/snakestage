@@ -1,0 +1,30 @@
+package:
+  name: "snakestage"
+  version: "0.1"
+
+source:
+  git_rev: v0.1
+  git_url: https://github.com/maarten-k/snakestage
+
+requirements:
+  host:
+    - python
+    - setuptools
+  build:
+    - python
+  run:
+    - python
+    - snakemake
+    - python-gfal2
+
+
+about:
+  home: https://github.com/maarten-k/snakestage
+  license: MIT
+  license_familY: MIT
+  license_file: LICENSE
+  summary: "Using a snakemake pipeline taking staging file into account (based on GFAL2 and SLURM) "
+
+extra:
+  recipe-maintainers:
+    - maarten-k
