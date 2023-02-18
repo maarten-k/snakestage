@@ -1,9 +1,9 @@
 package:
   name: "snakestage"
-  version: "0.1"
+  version: "0.1.2"
 
 source:
-  git_rev: v0.1
+  git_rev: v0.1.2
   git_url: https://github.com/maarten-k/snakestage
 
 requirements:
@@ -28,3 +28,6 @@ about:
 extra:
   recipe-maintainers:
     - maarten-k
+  skip-lints:
+    - should_be_noarch_python
+

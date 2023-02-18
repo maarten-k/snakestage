@@ -5,23 +5,23 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="snakestage",
-    version="0.1",
+    version="0.1.2",
     author="Maarten Kooyman",
     author_email="maarten@oyat.nl",
     description="Using a snakemake pipeline taking staging file into account (based on GFAL2 and SLURM)",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/maarten-k/snakestage",
-    packages=setuptools.find_packages(include=['snakestage', 'snakestage.*', "pmgridtools" , "pmgridtools.*"]),
+    packages=["snakestage","pmgridtools"],
     entry_points={
-        'console_scripts': ['snakestage=snakestage.snakestage:main']
+        'console_scripts': ['snakestage=snakestage.snakestage:main']},
    install_requires=[
        "gfal2_python",
        "snakemake",
    ],
-    classifiers=(
+    classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",
         "Operating System :: Linux",
-    ),
+    ],
 )
