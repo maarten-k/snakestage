@@ -80,14 +80,15 @@ class Job:
     def lookupFiles(self):
         cmd = f"scontrol show job  {self.id}".split()
         result = subprocess.run(cmd, stdout=subprocess.PIPE)
-        extract_command_regex = "\sCommand=(/.*.sh)\n"
+        extract_command_regex = "\sCommand=(/.*.(sbatch|sh))\n"
         commandscripts = re.findall(
             extract_command_regex, result.stdout.decode("utf-8")
         )
         if len(commandscripts) != 1:
-            raise f"could not find command script{commandscripts}"
+            print(cmd)
+            return
 
-        commandfile = commandscripts[0]
+        commandfile = commandscripts[0][0]
 
         # x = [
         #     x.strip()
@@ -98,12 +99,15 @@ class Job:
         # for file in [f for f in parsed["input"] if f.startswith("gridftp")]:
         #  print(file)
         # self._addFile(file)
-        for file in [
-            f
-            for f in read_job_properties(commandfile)["input"]
-            if f.startswith("gridftp")
-        ]:
-            self._addFile(file)
+        try:
+            for file in [
+                f
+                for f in read_job_properties(commandfile)["input"]
+                if f.startswith("gridftp")
+            ]:
+                self._addFile(file)
+        except TypeError:
+            pass
 
     def _addFile(self, file):
         self.jobfiles.append(JobFile(file))
@@ -158,7 +162,6 @@ class JobFinder:
         self.foundjobs = set()
 
     def findJobs(self):
-
         cmd = 'squeue --me -t pd -h --format="%i|%R"'.split()
         result = subprocess.run(cmd, stdout=subprocess.PIPE)
         jobids = set()
@@ -176,7 +179,6 @@ class PinWaitingJobs:
         self.job_last_pin = {}
 
     def findJobs(self):
-
         cmd = 'squeue --me -t pd -h --format="%i|%R"'.split()
         result = subprocess.run(cmd, stdout=subprocess.PIPE)
         # jobids = set()
@@ -253,7 +255,6 @@ class StageManager:
 
 
 def main():
-
     stager = StageManager()
     jobfinder = JobFinder()
 
@@ -263,7 +264,6 @@ def main():
     pinwaiting.pin_jobs(time_last_pin=-1)
     print("loadded")
     while True:
-
         for slurmid in jobfinder.findJobs():
             print(f"found {slurmid}")
             job = Job(slurmid)
