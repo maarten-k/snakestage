@@ -1,3 +1,4 @@
+import contextlib
 from snakemake.utils import read_job_properties
 import re
 import subprocess
@@ -99,15 +100,13 @@ class Job:
         # for file in [f for f in parsed["input"] if f.startswith("gridftp")]:
         #  print(file)
         # self._addFile(file)
-        try:
+        with contextlib.suppress(TypeError):
             for file in [
                 f
                 for f in read_job_properties(commandfile)["input"]
                 if f.startswith("gridftp")
             ]:
                 self._addFile(file)
-        except TypeError:
-            pass
 
     def _addFile(self, file):
         self.jobfiles.append(JobFile(file))
@@ -146,7 +145,7 @@ class Job:
         print(f"sleeping {self.size()/throtle}")
         time.sleep(self.size() / throtle)
 
-        result = subprocess.run(cmd, stdout=subprocess.PIPE)
+        subprocess.run(cmd, stdout=subprocess.PIPE)
 
     def hold(self, throtle=8000 * 1 << 20):
         print(f"hold {self.id}")
@@ -154,7 +153,7 @@ class Job:
 
         cmd = f"scontrol hold {self.id}".split()
 
-        result = subprocess.run(cmd, stdout=subprocess.PIPE)
+        subprocess.run(cmd, stdout=subprocess.PIPE)
 
 
 class JobFinder:
@@ -165,7 +164,9 @@ class JobFinder:
         cmd = 'squeue --me -t pd -h --format="%i|%R"'.split()
         result = subprocess.run(cmd, stdout=subprocess.PIPE)
         jobids = set()
-        for l2 in [l.strip('"') for l in result.stdout.decode("utf-8").splitlines()]:
+        for l2 in [
+            line.strip('"') for line in result.stdout.decode("utf-8").splitlines()
+        ]:
             if l2.endswith("|(JobHeldUser)"):
                 slurmid = l2.split("|")[0]
                 if slurmid not in self.foundjobs:
@@ -183,7 +184,9 @@ class PinWaitingJobs:
         result = subprocess.run(cmd, stdout=subprocess.PIPE)
         # jobids = set()
         refresh = {}
-        for l2 in [l.strip('"') for l in result.stdout.decode("utf-8").splitlines()]:
+        for l2 in [
+            line.strip('"') for line in result.stdout.decode("utf-8").splitlines()
+        ]:
             if not l2.endswith("|(JobHeldUser)"):
                 slurmid = l2.split("|")[0]
                 if slurmid not in self.job_last_pin:

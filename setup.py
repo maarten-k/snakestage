@@ -12,13 +12,12 @@ setuptools.setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/maarten-k/snakestage",
-    packages=["snakestage","pmgridtools"],
-    entry_points={
-        'console_scripts': ['snakestage=snakestage.snakestage:main']},
-   install_requires=[
-       "gfal2_python",
-       "snakemake",
-   ],
+    packages=["snakestage", "pmgridtools"],
+    entry_points={"console_scripts": ["snakestage=snakestage.snakestage:main"]},
+    install_requires=[
+        "gfal2_python",
+        "snakemake",
+    ],
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",
