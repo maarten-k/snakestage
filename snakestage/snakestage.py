@@ -1,4 +1,3 @@
-import contextlib
 from snakemake.utils import read_job_properties
 import re
 import subprocess
@@ -7,7 +6,7 @@ import time
 import gfal2
 
 import pmgridtools.webdav_dcache as webdav
-
+from random import shuffle
 
 def convert_to_surl(url):
     """
@@ -64,7 +63,7 @@ class JobFile:
 
         return re.sub(
             r".*/pnfs/grid.sara.nl/",
-            "https://webdav.grid.surfsara.nl:2884/pnfs/grid.sara.nl/",
+            "https://webdav.grid.surfsara.nl:2883/pnfs/grid.sara.nl/",
             self.path,
         )
 
@@ -100,13 +99,17 @@ class Job:
         # for file in [f for f in parsed["input"] if f.startswith("gridftp")]:
         #  print(file)
         # self._addFile(file)
-        with contextlib.suppress(TypeError):
-            for file in [
-                f
-                for f in read_job_properties(commandfile)["input"]
-                if f.startswith("gridftp")
-            ]:
+        try:
+            for file in set(
+                [
+                    f
+                    for f in read_job_properties(commandfile)["input"]
+                    if f.startswith("gridftp")
+                ]
+            ):
                 self._addFile(file)
+        except TypeError:
+            pass
 
     def _addFile(self, file):
         self.jobfiles.append(JobFile(file))
@@ -145,7 +148,7 @@ class Job:
         print(f"sleeping {self.size()/throtle}")
         time.sleep(self.size() / throtle)
 
-        subprocess.run(cmd, stdout=subprocess.PIPE)
+        result = subprocess.run(cmd, stdout=subprocess.PIPE)
 
     def hold(self, throtle=8000 * 1 << 20):
         print(f"hold {self.id}")
@@ -153,7 +156,7 @@ class Job:
 
         cmd = f"scontrol hold {self.id}".split()
 
-        subprocess.run(cmd, stdout=subprocess.PIPE)
+        result = subprocess.run(cmd, stdout=subprocess.PIPE)
 
 
 class JobFinder:
@@ -161,18 +164,20 @@ class JobFinder:
         self.foundjobs = set()
 
     def findJobs(self):
+
         cmd = 'squeue --me -t pd -h --format="%i|%R"'.split()
         result = subprocess.run(cmd, stdout=subprocess.PIPE)
         jobids = set()
-        for l2 in [
-            line.strip('"') for line in result.stdout.decode("utf-8").splitlines()
-        ]:
+        for l2 in [l.strip('"') for l in result.stdout.decode("utf-8").splitlines()]:
             if l2.endswith("|(JobHeldUser)"):
                 slurmid = l2.split("|")[0]
                 if slurmid not in self.foundjobs:
                     self.foundjobs.add(slurmid)
                     jobids.add(slurmid)
-        return jobids
+        #convert to list to and shuffle it to prefent that jobs with the same file are started next to each other: thiss should prevent overloading a pool node when there are multiple jobs with the same file and requested next to eachother
+        jobids_list=list(jobids)
+        shuffle(jobids_list)
+        return jobids_list
 
 
 class PinWaitingJobs:
@@ -180,13 +185,12 @@ class PinWaitingJobs:
         self.job_last_pin = {}
 
     def findJobs(self):
+
         cmd = 'squeue --me -t pd -h --format="%i|%R"'.split()
         result = subprocess.run(cmd, stdout=subprocess.PIPE)
         # jobids = set()
         refresh = {}
-        for l2 in [
-            line.strip('"') for line in result.stdout.decode("utf-8").splitlines()
-        ]:
+        for l2 in [l.strip('"') for l in result.stdout.decode("utf-8").splitlines()]:
             if not l2.endswith("|(JobHeldUser)"):
                 slurmid = l2.split("|")[0]
                 if slurmid not in self.job_last_pin:
@@ -258,6 +262,7 @@ class StageManager:
 
 
 def main():
+
     stager = StageManager()
     jobfinder = JobFinder()
 
@@ -267,6 +272,7 @@ def main():
     pinwaiting.pin_jobs(time_last_pin=-1)
     print("loadded")
     while True:
+
         for slurmid in jobfinder.findJobs():
             print(f"found {slurmid}")
             job = Job(slurmid)
