@@ -1,3 +1,4 @@
+import contextlib
 from snakemake.utils import read_job_properties
 import re
 import subprocess
@@ -99,17 +100,12 @@ class Job:
         # for file in [f for f in parsed["input"] if f.startswith("gridftp")]:
         #  print(file)
         # self._addFile(file)
-        try:
-            for file in set(
-                [
-                    f
-                    for f in read_job_properties(commandfile)["input"]
-                    if f.startswith("gridftp")
-                ]
-            ):
+        with contextlib.suppress(TypeError):
+            for file in {f for f in read_job_properties(commandfile)["input"]
+                            if f.startswith("gridftp")}:
                 self._addFile(file)
-        except TypeError:
-            pass
+
+
 
     def _addFile(self, file):
         self.jobfiles.append(JobFile(file))
@@ -140,7 +136,7 @@ class Job:
         """
         return sum(f.size for f in self.jobfiles)
 
-    def release(self, throtle=8000 * 1 << 20):
+    def release(self, throtle=4000 * 1 << 20):
         print(f"releasing {self.id}")
         self.stage()
 
@@ -150,7 +146,7 @@ class Job:
 
         result = subprocess.run(cmd, stdout=subprocess.PIPE)
 
-    def hold(self, throtle=8000 * 1 << 20):
+    def hold(self, throtle=4000 * 1 << 20):
         print(f"hold {self.id}")
         self.stage()
 
@@ -174,7 +170,7 @@ class JobFinder:
                 if slurmid not in self.foundjobs:
                     self.foundjobs.add(slurmid)
                     jobids.add(slurmid)
-        #convert to list to and shuffle it to prefent that jobs with the same file are started next to each other: thiss should prevent overloading a pool node when there are multiple jobs with the same file and requested next to eachother
+        #convert to list to and shuffle it to prevent that jobs with the same file are started next to each other: thiss should prevent overloading a pool node when there are multiple jobs with the same file and requested next to eachother
         jobids_list=list(jobids)
         shuffle(jobids_list)
         return jobids_list
@@ -270,20 +266,24 @@ def main():
     waiting = pinwaiting.findJobs()
     print(f"found {waiting} jobs waiting to execute")
     pinwaiting.pin_jobs(time_last_pin=-1)
-    print("loadded")
+    print("loaded")
     while True:
 
         for slurmid in jobfinder.findJobs():
             print(f"found {slurmid}")
             job = Job(slurmid)
-            job.lookupFiles()
-            if job.online():
-                job.release()
-                jobfinder.foundjobs.remove(slurmid)
-                pinwaiting.add_just_staged([slurmid])
-            else:
-                # store job
-                stager.add_job(job)
+            try:
+                job.lookupFiles()
+                if job.online():
+                    job.release()
+                    jobfinder.foundjobs.remove(slurmid)
+                    pinwaiting.add_just_staged([slurmid])
+                else:
+                    # store job
+                    stager.add_job(job)
+            except PermissionError as e:
+                print(e)
+                
 
         released_ids = stager.checkstaged()
         pinwaiting.add_just_staged(released_ids)

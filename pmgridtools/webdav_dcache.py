@@ -153,9 +153,11 @@ class WebDav:
             return int(response.headers["Content-Length"])
         elif response.status_code == 404:
             raise ValueError(f"file not found: {url}")
+        elif response.status_code == 403:
+            raise PermissionError(f"resonds code {response.status_code} : {url}")
         else:
             raise ValueError(
-                f"resonds code not a default value (expected 200 or 404){response.status_code}"
+                f"resonds code not a default value (expected 200 or 404){response.status_code} : {url}"
             )
 
     def cat(self, url):
@@ -174,9 +176,11 @@ class WebDav:
             return True
         elif response.status_code == 404:
             return False
+        elif response.status_code == 403:
+            raise PermissionError(f"resonds code {response.status_code} : {url}")
         else:
             raise ValueError(
-                f"resonds code not a default value (expected 200 or 404){response.status_code}"
+                f"resonds code not a default value (expected 200 or 404){response.status_code} {url}"
             )
 
     def _get_head(self, url):
