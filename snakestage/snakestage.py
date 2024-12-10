@@ -281,7 +281,7 @@ def main():
                 else:
                     # store job
                     stager.add_job(job)
-            except PermissionError,ValueError as e:
+            except (PermissionError,ValueError) as e:
                 print(e)
 
                 
