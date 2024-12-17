@@ -1,4 +1,4 @@
-{% set version = "0.1.8" %}
+{% set version = "0.1.9" %}
 
 package:
   name: "snakestage"
@@ -21,7 +21,7 @@ requirements:
   run:
     - python
     - snakemake-minimal
-    - python-gfal2
+    - tqdm
 
 
 about:
@@ -29,7 +29,7 @@ about:
   license: MIT
   license_familY: MIT
   license_file: LICENSE
-  summary: "Using a snakemake pipeline taking staging file into account (based on GFAL2 and SLURM) "
+  summary: "Using a snakemake pipeline taking staging file into account (based on dcache API and SLURM) "
 
 extra:
   recipe-maintainers:

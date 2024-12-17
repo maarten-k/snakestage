@@ -4,10 +4,11 @@ import re
 import subprocess
 import time
 
-import gfal2
 
 import pmgridtools.webdav_dcache as webdav
+import pmgridtools.api_dcache as dapi
 from random import shuffle
+
 
 def convert_to_surl(url):
     """
@@ -32,29 +33,18 @@ class JobFile:
         return self.size
 
     def stage(self, gfalcontext=None):
-        if gfalcontext is None:
-            gfalcontext = gfal2.creat_context()
-        try:
-            surls = [convert_to_surl(self.path)]
-            # bring_online(surl, pintime, timeout, async)
-            pintime = 3600 * 3
-            (status, token) = gfalcontext.bring_online(surls, pintime, pintime, True)
-            while status == 0:
-                status = gfalcontext.bring_online_poll(surls, token)
-        except gfal2.GError as e:
-            print("Could not bring the file online:")
-            print("\t", e.message)
-            print("\t Code", e.code)
+        wd = dapi.dcacheapy()
+        wd.stage(self._convert_to_pnfs())
 
     def online(self):
         """
         check activly if job is online
         """
-        wd = webdav.WebDav()
-        locality = wd.locality(self._convert_to_webdav())
-        print(f"loc:{locality}")
+        wd = dapi.dcacheapy()
+        locality = wd.locality(self._convert_to_pnfs())
+        # print(f"loc:{locality}")
         self.onlinestatus = locality in {"ONLINE_AND_NEARLINE", "ONLINE"}
-        print(f"self online status{self.onlinestatus}")
+        # print(f"self online status{self.onlinestatus}")
         return self.onlinestatus
 
     def _convert_to_webdav(self):
@@ -67,6 +57,12 @@ class JobFile:
             "https://webdav.grid.surfsara.nl:2883/pnfs/grid.sara.nl/",
             self.path,
         )
+
+    def _convert_to_pnfs(self):
+        """
+        convert a turl/surl to a webdav url
+        """
+        return re.sub(r".*/pnfs/grid.sara.nl/", "/pnfs/grid.sara.nl/", self.path)
 
 
 class Job:
@@ -101,11 +97,12 @@ class Job:
         #  print(file)
         # self._addFile(file)
         with contextlib.suppress(TypeError):
-            for file in {f for f in read_job_properties(commandfile)["input"]
-                            if f.startswith("gridftp")}:
+            for file in {
+                f
+                for f in read_job_properties(commandfile)["input"]
+                if f.startswith("gridftp")
+            }:
                 self._addFile(file)
-
-
 
     def _addFile(self, file):
         self.jobfiles.append(JobFile(file))
@@ -164,14 +161,16 @@ class JobFinder:
         cmd = 'squeue --me -t pd -h --format="%i|%R"'.split()
         result = subprocess.run(cmd, stdout=subprocess.PIPE)
         jobids = set()
-        for l2 in [l.strip('"') for l in result.stdout.decode("utf-8").splitlines()]:
+        for l2 in [
+            l.strip('"') for l in result.stdout.decode("utf-8").splitlines()[0:100]
+        ]:
             if l2.endswith("|(JobHeldUser)"):
                 slurmid = l2.split("|")[0]
                 if slurmid not in self.foundjobs:
                     self.foundjobs.add(slurmid)
                     jobids.add(slurmid)
-        #convert to list to and shuffle it to prevent that jobs with the same file are started next to each other: thiss should prevent overloading a pool node when there are multiple jobs with the same file and requested next to eachother
-        jobids_list=list(jobids)
+        # convert to list to and shuffle it to prevent that jobs with the same file are started next to each other: thiss should prevent overloading a pool node when there are multiple jobs with the same file and requested next to eachother
+        jobids_list = list(jobids)
         shuffle(jobids_list)
         return jobids_list
 
@@ -240,8 +239,10 @@ class StageManager:
         for jobid, job in self.jobcatalog.items():
             if jobid not in self.staging:
                 data2stage = data2stage + job.data2stage()
+                logging.debug(data2stage)
                 if data2stage < max_stage_GB * 1024 * 1024 * 1024:
                     job.stage()
+                    logging.debug(f"staging append {job.id}")
                     self.staging.append(job.id)
                 else:
                     break
@@ -257,6 +258,13 @@ class StageManager:
         return released
 
 
+import logging
+
+logging.basicConfig(level=logging.WARNING)
+logging.getLogger("urllib3").setLevel(logging.WARNING)
+from tqdm import tqdm
+
+
 def main():
 
     stager = StageManager()
@@ -269,8 +277,8 @@ def main():
     print("loaded")
     while True:
 
-        for slurmid in jobfinder.findJobs():
-            print(f"found {slurmid}")
+        for slurmid in tqdm(jobfinder.findJobs()):
+            # print(f"found {slurmid}")
             job = Job(slurmid)
             try:
                 job.lookupFiles()
@@ -281,17 +289,15 @@ def main():
                 else:
                     # store job
                     stager.add_job(job)
-            except (PermissionError,ValueError) as e:
+            except (PermissionError, ValueError) as e:
                 print(e)
-
-                
 
         released_ids = stager.checkstaged()
         pinwaiting.add_just_staged(released_ids)
         [jobfinder.foundjobs.remove(slurmid) for slurmid in released_ids]
         pinwaiting.findJobs()
         pinwaiting.pin_jobs()
-
+        logging.debug("test")
         stager.stage()
         sleeptime = 60
         for _ in range(sleeptime):

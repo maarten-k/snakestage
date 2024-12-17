@@ -1,5 +1,5 @@
 # Snakestage
-Using a snakemake pipeline taking staging file into account (based on GFAL2 and SLURM)
+Using a snakemake pipeline taking staging file into account (based on DCache API  and SLURM)
 
 Install with:
 
