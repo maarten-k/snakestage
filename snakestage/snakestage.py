@@ -32,16 +32,16 @@ class JobFile:
         self.size = wd.size(self._convert_to_webdav())
         return self.size
 
-    def stage(self, gfalcontext=None):
-        wd = dapi.dcacheapy()
-        wd.stage(self._convert_to_pnfs())
+    def stage(self):
+
+        dapi.stage(self._convert_to_pnfs())
 
     def online(self):
         """
         check activly if job is online
         """
-        wd = dapi.dcacheapy()
-        locality = wd.locality(self._convert_to_pnfs())
+        # wd = dapi.dcacheapy()
+        locality = dapi.locality(self._convert_to_pnfs())
         # print(f"loc:{locality}")
         self.onlinestatus = locality in {"ONLINE_AND_NEARLINE", "ONLINE"}
         # print(f"self online status{self.onlinestatus}")
@@ -71,8 +71,10 @@ class Job:
         self.jobfiles = []
 
     def stage(self):
-        for jobfile in self.jobfiles:
-            jobfile.stage()
+        dapi.stage(self.get_all_files())
+
+    def get_all_files(self):
+        return [j._convert_to_pnfs() for j in self.jobfiles]
 
     def lookupFiles(self):
         cmd = f"scontrol show job  {self.id}".split()
@@ -134,17 +136,17 @@ class Job:
         return sum(f.size for f in self.jobfiles)
 
     def release(self, throtle=4000 * 1 << 20):
-        print(f"releasing {self.id}")
+        # print(f"releasing {self.id}")
         self.stage()
 
         cmd = f"scontrol release {self.id}".split()
-        print(f"sleeping {self.size()/throtle}")
+        # print(f"sleeping {self.size()/throtle}")
         time.sleep(self.size() / throtle)
 
         result = subprocess.run(cmd, stdout=subprocess.PIPE)
 
     def hold(self, throtle=4000 * 1 << 20):
-        print(f"hold {self.id}")
+        # print(f"hold {self.id}")
         self.stage()
 
         cmd = f"scontrol hold {self.id}".split()
@@ -161,9 +163,7 @@ class JobFinder:
         cmd = 'squeue --me -t pd -h --format="%i|%R"'.split()
         result = subprocess.run(cmd, stdout=subprocess.PIPE)
         jobids = set()
-        for l2 in [
-            l.strip('"') for l in result.stdout.decode("utf-8").splitlines()[0:100]
-        ]:
+        for l2 in (l.strip('"') for l in result.stdout.decode("utf-8").splitlines()):
             if l2.endswith("|(JobHeldUser)"):
                 slurmid = l2.split("|")[0]
                 if slurmid not in self.foundjobs:
@@ -205,19 +205,26 @@ class PinWaitingJobs:
             if current_time - v > time_last_pin
         ]
         print(f"checking {len(slurm_ids)} job if still online")
-        for slurmid in slurm_ids:
+        all_files2stage = []
+        for slurmid in tqdm(slurm_ids, ascii=True):
             # print(f"checking {(slurmid)} job if still online")
             job = Job(slurmid)
             job.lookupFiles()
             if job.online():
                 # files are repinned
-                job.stage()
+                all_files2stage.extend(job.get_all_files())
                 self.job_last_pin[slurmid] = current_time
 
             else:
                 print(f"holding job {slurmid}")
                 job.hold()
                 del self.job_last_pin[slurmid]
+
+        # stage in chunks of 10 to prevent a 403 error on api
+        chunk_size = 10
+        for i in range(0, len(all_files2stage), chunk_size):
+            chunk = all_files2stage[i : i + chunk_size]
+            dapi.stage(chunk)
 
     def add_just_staged(self, slurm_ids):
         current_time = int(time.time())
@@ -239,7 +246,7 @@ class StageManager:
         for jobid, job in self.jobcatalog.items():
             if jobid not in self.staging:
                 data2stage = data2stage + job.data2stage()
-                logging.debug(data2stage)
+                # logging.debug(data2stage)
                 if data2stage < max_stage_GB * 1024 * 1024 * 1024:
                     job.stage()
                     logging.debug(f"staging append {job.id}")
@@ -264,6 +271,8 @@ logging.basicConfig(level=logging.WARNING)
 logging.getLogger("urllib3").setLevel(logging.WARNING)
 from tqdm import tqdm
 
+dapi = dapi.dcacheapy()
+
 
 def main():
 
@@ -274,10 +283,10 @@ def main():
     waiting = pinwaiting.findJobs()
     print(f"found {waiting} jobs waiting to execute")
     pinwaiting.pin_jobs(time_last_pin=-1)
-    print("loaded")
-    while True:
 
-        for slurmid in tqdm(jobfinder.findJobs()):
+    while True:
+        this_round_released = 0
+        for slurmid in tqdm(jobfinder.findJobs(), ascii=True):
             # print(f"found {slurmid}")
             job = Job(slurmid)
             try:
@@ -286,18 +295,18 @@ def main():
                     job.release()
                     jobfinder.foundjobs.remove(slurmid)
                     pinwaiting.add_just_staged([slurmid])
+                    this_round_released = this_round_released + 1
                 else:
                     # store job
                     stager.add_job(job)
             except (PermissionError, ValueError) as e:
                 print(e)
-
+        print(f"released {this_round_released} jobs to be executed by slurm")
         released_ids = stager.checkstaged()
         pinwaiting.add_just_staged(released_ids)
         [jobfinder.foundjobs.remove(slurmid) for slurmid in released_ids]
         pinwaiting.findJobs()
         pinwaiting.pin_jobs()
-        logging.debug("test")
         stager.stage()
         sleeptime = 60
         for _ in range(sleeptime):
