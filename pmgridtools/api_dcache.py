@@ -151,13 +151,15 @@ class dcacheapy:
                         lf.write(chunk)
         return localfile
 
-    def size(self, url):
+    def size(self, pnfs):
         """
         Get file size
         """
-        response = self.session.request("HEAD", url, timeout=self.timeout)
+        url = f"{self.api}/namespace/{pnfs}"
+        # headers = {"accept": "application/json", "content-type": "application/json"}
+        response = self.session.get(url, timeout=self.timeout)
         if response.status_code == 200:
-            return int(response.headers["Content-Length"])
+            return int(response.json()["size"])
         elif response.status_code == 404:
             raise ValueError(f"file not found: {url}")
         elif response.status_code == 403:
