@@ -22,7 +22,7 @@ setuptools.setup(
     install_requires=["tqdm", "snakemake", "requests"],
     classifiers=[
         "Programming Language :: Python :: 3",
-        "License :: OSI Approved :: MIT License",c
+        "License :: OSI Approved :: MIT License",
         "Operating System :: Linux",
     ],
 )
