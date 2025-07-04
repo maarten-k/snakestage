@@ -16,13 +16,13 @@ setuptools.setup(
     entry_points={
         "console_scripts": [
             "snakestage=snakestage.snakestage:main",
-            "pm_stage_files=pmgridtools.bin.pm_stage_files:main",
+            "pm_stage_files=pmgridtools.pm_stage_files:main",
         ]
     },
     install_requires=["tqdm", "snakemake", "requests"],
     classifiers=[
         "Programming Language :: Python :: 3",
-        "License :: OSI Approved :: MIT License",
+        "License :: OSI Approved :: MIT License",c
         "Operating System :: Linux",
     ],
 )
