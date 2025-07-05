@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="snakestage",
-    version="0.1.10",
+    version="0.1.11",
     author="Maarten Kooyman",
     author_email="maarten@oyat.nl",
     description="Using a snakemake pipeline taking staging file into account (based on dcache API and SLURM)",
