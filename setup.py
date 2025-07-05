@@ -12,11 +12,12 @@ setuptools.setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/maarten-k/snakestage",
-    packages=["snakestage", "pmgridtools"],
+    packages=["snakestage"],
     entry_points={"console_scripts": ["snakestage=snakestage.snakestage:main"]},
     install_requires=[
         "tqdm",
         "snakemake",
+        "pmgridtools",
     ],
     classifiers=[
         "Programming Language :: Python :: 3",

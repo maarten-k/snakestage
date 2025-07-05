@@ -22,6 +22,7 @@ requirements:
     - python
     - snakemake-minimal
     - tqdm
+    - pmgridtools
 
 
 about:

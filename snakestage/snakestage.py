@@ -1,21 +1,14 @@
 import contextlib
-from snakemake.utils import read_job_properties
+import logging
 import re
 import subprocess
 import time
-
-
-import pmgridtools.webdav_dcache as webdav
-import pmgridtools.api_dcache as dapi
 from random import shuffle
 
-
-def convert_to_surl(url):
-    """
-    Convert a turl/surl to a tupple of (surl,turl)
-    """
-
-    return re.sub(r".*gridftp.grid.sara.nl(:2811)?/", "srm://srm.grid.sara.nl/", url)
+import pmgridtools.api_dcache as dapi
+import pmgridtools.webdav_dcache as webdav
+from snakemake.utils import read_job_properties
+from tqdm import tqdm
 
 
 class JobFile:
@@ -89,15 +82,7 @@ class Job:
 
         commandfile = commandscripts[0][0]
 
-        # x = [
-        #     x.strip()
-        #     for x in open(commandfile).readlines()
-        #     if x.startswith("# properties")
-        # ][0]
-        # parsed = json.loads(x[15:])
-        # for file in [f for f in parsed["input"] if f.startswith("gridftp")]:
-        #  print(file)
-        # self._addFile(file)
+
         with contextlib.suppress(TypeError):
             for file in {
                 f
@@ -143,15 +128,15 @@ class Job:
         # print(f"sleeping {self.size()/throtle}")
         time.sleep(self.size() / throtle)
 
-        result = subprocess.run(cmd, stdout=subprocess.PIPE)
+        subprocess.run(cmd, stdout=subprocess.PIPE)
 
-    def hold(self, throtle=4000 * 1 << 20):
+    def hold(self):
         # print(f"hold {self.id}")
         self.stage()
 
         cmd = f"scontrol hold {self.id}".split()
 
-        result = subprocess.run(cmd, stdout=subprocess.PIPE)
+        subprocess.run(cmd, stdout=subprocess.PIPE)
 
 
 class JobFinder:
@@ -265,11 +250,9 @@ class StageManager:
         return released
 
 
-import logging
-
 logging.basicConfig(level=logging.WARNING)
 logging.getLogger("urllib3").setLevel(logging.WARNING)
-from tqdm import tqdm
+
 
 dapi = dapi.dcacheapy()
 
